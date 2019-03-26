@@ -414,7 +414,7 @@ void NativeWindowViews::Hide() {
 }
 
 bool NativeWindowViews::IsVisible() {
-  return widget()->IsVisible();
+  return !IsMinimized() && widget()->IsVisible();
 }
 
 bool NativeWindowViews::IsEnabled() {
