@@ -1,4 +1,5 @@
 import { ipcRendererInternal } from '@electron/internal/renderer/ipc-renderer-internal'
+import * as ipcRendererUtils from '@electron/internal/renderer/ipc-renderer-internal-utils'
 
 // This file implements the following APIs:
 // - window.history.back()
@@ -77,7 +78,7 @@ class LocationProxy {
           // It's right, that's bad, but we're doing it anway.
           (guestURL as any)[propertyKey] = newVal
 
-          return this._invokeWebContentsMethodSync('loadURL', guestURL.toString())
+          return this._invokeWebContentsMethod('loadURL', guestURL.toString())
         }
       }
     })
@@ -107,7 +108,7 @@ class LocationProxy {
   }
 
   private _invokeWebContentsMethodSync (method: string, ...args: any[]) {
-    return ipcRendererInternal.sendSync('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD_SYNC', this.guestId, method, ...args)
+    return ipcRendererUtils.invokeSync('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args)
   }
 }
 
@@ -125,7 +126,7 @@ class BrowserWindowProxy {
   }
   public set location (url: string | any) {
     url = resolveURL(url, this.location.href)
-    this._invokeWebContentsMethodSync('loadURL', url)
+    this._invokeWebContentsMethod('loadURL', url)
   }
 
   constructor (guestId: number) {
@@ -139,7 +140,7 @@ class BrowserWindowProxy {
   }
 
   public close () {
-    ipcRendererInternal.send('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_CLOSE', this.guestId)
+    this._invokeWindowMethod('destroy')
   }
 
   public focus () {
@@ -154,8 +155,8 @@ class BrowserWindowProxy {
     this._invokeWebContentsMethod('print')
   }
 
-  public postMessage (message: any, targetOrigin: any) {
-    ipcRendererInternal.send('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_POSTMESSAGE', this.guestId, message, toString(targetOrigin), window.location.origin)
+  public postMessage (message: any, targetOrigin: string) {
+    ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_POSTMESSAGE', this.guestId, message, toString(targetOrigin), window.location.origin)
   }
 
   public eval (code: string) {
@@ -163,15 +164,11 @@ class BrowserWindowProxy {
   }
 
   private _invokeWindowMethod (method: string, ...args: any[]) {
-    return ipcRendererInternal.send('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_METHOD', this.guestId, method, ...args)
+    return ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WINDOW_METHOD', this.guestId, method, ...args)
   }
 
   private _invokeWebContentsMethod (method: string, ...args: any[]) {
-    return ipcRendererInternal.send('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args)
-  }
-
-  private _invokeWebContentsMethodSync (method: string, ...args: any[]) {
-    return ipcRendererInternal.sendSync('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD_SYNC', this.guestId, method, ...args)
+    return ipcRendererUtils.invoke('ELECTRON_GUEST_WINDOW_MANAGER_WEB_CONTENTS_METHOD', this.guestId, method, ...args)
   }
 }
 
@@ -229,20 +226,20 @@ export const windowSetup = (
   })
 
   window.history.back = function () {
-    ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_BACK')
+    ipcRendererUtils.invoke('ELECTRON_NAVIGATION_CONTROLLER_GO_BACK')
   }
 
   window.history.forward = function () {
-    ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_FORWARD')
+    ipcRendererUtils.invoke('ELECTRON_NAVIGATION_CONTROLLER_GO_FORWARD')
   }
 
   window.history.go = function (offset: number) {
-    ipcRendererInternal.send('ELECTRON_NAVIGATION_CONTROLLER_GO_TO_OFFSET', +offset)
+    ipcRendererUtils.invoke('ELECTRON_NAVIGATION_CONTROLLER_GO_TO_OFFSET', +offset)
   }
 
   defineProperty(window.history, 'length', {
     get: function () {
-      return ipcRendererInternal.sendSync('ELECTRON_NAVIGATION_CONTROLLER_LENGTH')
+      return ipcRendererUtils.invokeSync('ELECTRON_NAVIGATION_CONTROLLER_LENGTH')
     }
   })
 
