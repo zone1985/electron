@@ -1534,8 +1534,6 @@ bool WebContents::IsCurrentlyAudible() {
 
 #if BUILDFLAG(ENABLE_PRINTING)
 void WebContents::Print(mate::Arguments* args) {
-  bool silent = false, print_background = false;
-  base::string16 device_name;
   mate::Dictionary options = mate::Dictionary::CreateEmpty(args->isolate());
   base::DictionaryValue settings;
   if (args->Length() >= 1 && !args->GetNext(&options)) {
@@ -1547,11 +1545,175 @@ void WebContents::Print(mate::Arguments* args) {
     args->ThrowError("Invalid optional callback provided");
     return;
   }
+
+  bool silent = false;
   options.Get("silent", &silent);
-  options.Get("printBackground", &print_background);
-  if (options.Get("deviceName", &device_name) && !device_name.empty()) {
-    settings.SetString(printing::kSettingDeviceName, device_name);
+
+  mate::Dictionary header_footer;
+  if (options.Get("headerFooter", &header_footer)) {
+    settings.SetBoolean(printing::kSettingHeaderFooterEnabled, true);
+    base::string16 title;
+    if (!header_footer.Get("title", &title)) {
+      args->ThrowError("headerFooter.title must be specified");
+      return;
+    }
+    settings.SetString(printing::kSettingHeaderFooterTitle, title);
+    base::string16 url;
+    if (!header_footer.Get("URL", &url)) {
+      args->ThrowError("headerFooter.URL must be specified");
+      return;
+    }
+    settings.SetString(printing::kSettingHeaderFooterURL, url);
+  } else {
+    settings.SetBoolean(printing::kSettingHeaderFooterEnabled, false);
   }
+
+  bool print_background = false;
+  options.Get("printBackground", &print_background);
+  settings.SetBoolean(printing::kSettingShouldPrintBackgrounds,
+                      print_background);
+
+  bool selection_only = false;
+  options.Get("selectionOnly", &selection_only);
+  settings.SetBoolean(printing::kSettingShouldPrintSelectionOnly,
+                      selection_only);
+
+  mate::Dictionary margins;
+  if (options.Get("margins", &margins)) {
+    base::string16 type;
+    margins.Get("type", &type);
+    printing::MarginType margin_type;
+    if (type.compare(L"default") == 0) {
+      margin_type = printing::DEFAULT_MARGINS;
+    } else if (type.compare(L"none") == 0) {
+      margin_type = printing::NO_MARGINS;
+    } else if (type.compare(L"printableArea") == 0) {
+      margin_type = printing::PRINTABLE_AREA_MARGINS;
+    } else if (type.compare(L"custom") == 0) {
+      margin_type = printing::CUSTOM_MARGINS;
+    } else {
+      args->ThrowError("invalid margins.type");
+      return;
+    }
+    settings.SetInteger(printing::kSettingMarginsType, margin_type);
+
+    if (margin_type == printing::CUSTOM_MARGINS) {
+      int top = 0;
+      margins.Get("top", &top);
+      settings.SetInteger(printing::kSettingMarginTop, top);
+      int bottom = 0;
+      margins.Get("bottom", &bottom);
+      settings.SetInteger(printing::kSettingMarginBottom, bottom);
+      int left = 0;
+      margins.Get("left", &left);
+      settings.SetInteger(printing::kSettingMarginLeft, left);
+      int right = 0;
+      margins.Get("right", &right);
+      settings.SetInteger(printing::kSettingMarginRight, right);
+    }
+  } else {
+    settings.SetInteger(printing::kSettingMarginsType,
+                        printing::DEFAULT_MARGINS);
+  }
+
+  bool collate = true;
+  options.Get("collate", &collate);
+  settings.SetBoolean(printing::kSettingCollate, collate);
+
+  int copies = 1;
+  options.Get("copies", &copies);
+  settings.SetInteger(printing::kSettingCopies, copies);
+
+  bool color = true;
+  options.Get("color", &color);
+  if (color) {
+    settings.SetInteger(printing::kSettingColor, printing::COLOR);
+  } else {
+    settings.SetInteger(printing::kSettingColor, printing::GRAY);
+  }
+
+  int dpi = 72;
+  if (options.Get("dpi", &dpi)) {
+    settings.SetInteger(printing::kSettingDpiHorizontal, dpi);
+    settings.SetInteger(printing::kSettingDpiVertical, dpi);
+  } else {
+    mate::Dictionary dpi_settings;
+    if (options.Get("dpi", &dpi_settings)) {
+      LOG(INFO) << "DPI dict" << '\n';
+
+      int horizontal = 72;
+      dpi_settings.Get("horizontal", &horizontal);
+      settings.SetInteger(printing::kSettingDpiHorizontal, horizontal);
+      int vertical = 72;
+      dpi_settings.Get("vertical", &vertical);
+      settings.SetInteger(printing::kSettingDpiVertical, vertical);
+    } else {
+      settings.SetInteger(printing::kSettingDpiHorizontal, dpi);
+      settings.SetInteger(printing::kSettingDpiVertical, dpi);
+    }
+  }
+
+  base::string16 duplexMode = L"simplex";
+  options.Get("duplexMode", &duplexMode);
+  printing::DuplexMode duplex_mode;
+  if (duplexMode.compare(L"simplex") == 0) {
+    duplex_mode = printing::SIMPLEX;
+  } else if (duplexMode.compare(L"long edge") == 0) {
+    duplex_mode = printing::LONG_EDGE;
+  } else if (duplexMode.compare(L"short edge") == 0) {
+    duplex_mode = printing::SHORT_EDGE;
+  } else {
+    args->ThrowError("invalid duplexMode");
+    return;
+  }
+  settings.SetInteger(printing::kSettingDuplexMode, duplex_mode);
+
+  bool landscape = false;
+  options.Get("landscape", &landscape);
+  settings.SetBoolean(printing::kSettingLandscape, landscape);
+
+  base::string16 device_name = L"";
+  options.Get("deviceName", &device_name);
+  settings.SetString(printing::kSettingDeviceName, device_name);
+
+  int scale_factor = 100;
+  options.Get("scaleFactor", &scale_factor);
+  settings.SetInteger(printing::kSettingScaleFactor, scale_factor);
+
+  bool rasterize_pdf = false;
+  options.Get("rasterizePDF", &rasterize_pdf);
+  settings.SetBoolean(printing::kSettingRasterizePdf, rasterize_pdf);
+
+  int pages_per_sheet = 1;
+  options.Get("pagesPerSheet", &pages_per_sheet);
+  settings.SetInteger(printing::kSettingPagesPerSheet, pages_per_sheet);
+
+  settings.SetBoolean(printing::kSettingPrintToPDF, false);
+  settings.SetBoolean(printing::kSettingCloudPrintDialog, false);
+  settings.SetBoolean(printing::kSettingPrintWithPrivet, false);
+  settings.SetBoolean(printing::kSettingPrintWithExtension, false);
+
+  std::vector<mate::Dictionary> page_ranges;
+  if (options.Get("pageRanges", &page_ranges)) {
+    std::unique_ptr<base::ListValue> page_range_list(new base::ListValue());
+    for (size_t i = 0; i < page_ranges.size(); ++i) {
+      int from, to;
+      if (page_ranges[i].Get("from", &from) && page_ranges[i].Get("to", &to)) {
+        std::unique_ptr<base::DictionaryValue> range(
+            new base::DictionaryValue());
+        range->SetInteger(printing::kSettingPageRangeFrom, from);
+        range->SetInteger(printing::kSettingPageRangeTo, to);
+        page_range_list->Append(std::move(range));
+      } else {
+        continue;
+      }
+    }
+    LOG(INFO) << page_range_list->GetSize() << '\n';
+
+    if (page_range_list->GetSize() > 0)
+      settings.SetList(printing::kSettingPageRange, std::move(page_range_list));
+  }
+
   auto* print_view_manager =
       printing::PrintViewManagerBasic::FromWebContents(web_contents());
   auto* focused_frame = web_contents()->GetFocusedFrame();
