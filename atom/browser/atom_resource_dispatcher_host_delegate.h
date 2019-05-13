@@ -55,9 +55,9 @@ class AtomResourceDispatcherHostDelegate
 
   std::map<net::URLRequest*, StreamTargetInfo> stream_target_info_;
 #endif
-};
 
-DISALLOW_COPY_AND_ASSIGN(AtomResourceDispatcherHostDelegate);
+  DISALLOW_COPY_AND_ASSIGN(AtomResourceDispatcherHostDelegate);
+};
 
 }  // namespace atom
 
