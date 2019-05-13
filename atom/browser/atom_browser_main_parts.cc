@@ -19,6 +19,7 @@
 #include "atom/browser/atom_web_ui_controller_factory.h"
 #include "atom/browser/browser.h"
 #include "atom/browser/browser_process_impl.h"
+#include "atom/browser/feature_list.h"
 #include "atom/browser/javascript_environment.h"
 #include "atom/browser/media/media_capture_devices_dispatcher.h"
 #include "atom/browser/node_debugger.h"
@@ -225,35 +226,6 @@ void AtomBrowserMainParts::InitializeExtensionSystem() {
       extensions::ExtensionSystem::Get(browser_context_.get()));
   extension_system_->InitForRegularProfile(true /* extensions_enabled */);
   extension_system_->FinishInitialization();
-}
-#endif
-
-void AtomBrowserMainParts::InitializeFeatureList() {
-  auto* cmd_line = base::CommandLine::ForCurrentProcess();
-  auto enable_features =
-      cmd_line->GetSwitchValueASCII(::switches::kEnableFeatures);
-  auto disable_features =
-      cmd_line->GetSwitchValueASCII(::switches::kDisableFeatures);
-  // Disable creation of spare renderer process with site-per-process mode,
-  // it interferes with our process preference tracking for non sandboxed mode.
-  // Can be reenabled when our site instance policy is aligned with chromium
-  // when node integration is enabled.
-  disable_features +=
-      std::string(",") + features::kSpareRendererForSitePerProcess.name +
-      std::string(",") + network::features::kNetworkService.name;
-  auto feature_list = std::make_unique<base::FeatureList>();
-  feature_list->InitializeFromCommandLine(enable_features, disable_features);
-  base::FeatureList::SetInstance(std::move(feature_list));
-}
-
-#if !defined(OS_MACOSX)
-void AtomBrowserMainParts::OverrideAppLogsPath() {
-  base::FilePath path;
-  if (base::PathService::Get(DIR_APP_DATA, &path)) {
-    path = path.Append(base::FilePath::FromUTF8Unsafe(GetApplicationName()));
-    path = path.Append(base::FilePath::FromUTF8Unsafe("logs"));
-    base::PathService::Override(DIR_APP_LOGS, path);
-  }
 }
 #endif
 

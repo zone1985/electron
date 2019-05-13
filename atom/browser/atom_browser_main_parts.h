@@ -100,8 +100,6 @@ class AtomBrowserMainParts : public content::BrowserMainParts {
   void PostDestroyThreads() override;
 
  private:
-  void InitializeFeatureList();
-  void OverrideAppLogsPath();
   void PreMainMessageLoopStartCommon();
 
 #if BUILDFLAG(ENABLE_ELECTRON_EXTENSIONS)
