@@ -84,7 +84,7 @@ class AtomExtensionsBrowserClient : public extensions::ExtensionsBrowserClient {
       content::BrowserContext* context) override;
   void GetEarlyExtensionPrefsObservers(
       content::BrowserContext* context,
-      std::vector<extensions::ExtensionPrefsObserver*>* observers)
+      std::vector<extensions::EarlyExtensionPrefsObserver*>* observers)
       const override;
   extensions::ProcessManagerDelegate* GetProcessManagerDelegate()
       const override;

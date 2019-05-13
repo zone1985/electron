@@ -166,7 +166,7 @@ PrefService* AtomExtensionsBrowserClient::GetPrefServiceForContext(
 
 void AtomExtensionsBrowserClient::GetEarlyExtensionPrefsObservers(
     content::BrowserContext* context,
-    std::vector<extensions::ExtensionPrefsObserver*>* observers) const {}
+    std::vector<extensions::EarlyExtensionPrefsObserver*>* observers) const {}
 
 extensions::ProcessManagerDelegate*
 AtomExtensionsBrowserClient::GetProcessManagerDelegate() const {
