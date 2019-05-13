@@ -17,6 +17,8 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
+#include <memory>
+#include <utility>
 #include "atom/common/atom_constants.h"
 #include "base/guid.h"
 #include "base/strings/strcat.h"

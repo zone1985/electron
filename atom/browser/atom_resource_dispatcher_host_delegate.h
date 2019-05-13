@@ -11,6 +11,8 @@
 #include "electron/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
+#include <map>
+#include <memory>
 #include "content/public/common/transferrable_url_loader.mojom.h"
 #endif
 
@@ -45,8 +47,6 @@ class AtomResourceDispatcherHostDelegate
 #endif
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(AtomResourceDispatcherHostDelegate);
-
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
   struct StreamTargetInfo {
     std::string extension_id;
@@ -56,6 +56,8 @@ class AtomResourceDispatcherHostDelegate
   std::map<net::URLRequest*, StreamTargetInfo> stream_target_info_;
 #endif
 };
+
+DISALLOW_COPY_AND_ASSIGN(AtomResourceDispatcherHostDelegate);
 
 }  // namespace atom
 
