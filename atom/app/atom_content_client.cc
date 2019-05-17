@@ -31,6 +31,7 @@
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
 #include "atom/common/atom_constants.h"
+#include "content/public/browser/plugin_service.h"
 #include "pdf/pdf.h"
 #include "pdf/pdf_ppapi.h"
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
@@ -146,7 +147,7 @@ void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
   content::PepperPluginInfo pdf_info;
   pdf_info.is_internal = true;
   pdf_info.is_out_of_process = true;
-  pdf_info.name = "Chromium PDF Viewer";
+  pdf_info.name = kPDFExtensionPluginName;
   pdf_info.description = "Portable Document Format";
   pdf_info.path = base::FilePath::FromUTF8Unsafe(kPdfPluginPath);
   content::WebPluginMimeType pdf_mime_type(kPdfPluginMimeType, "pdf",
@@ -159,6 +160,17 @@ void ComputeBuiltInPlugins(std::vector<content::PepperPluginInfo>* plugins) {
       chrome_pdf::PPP_ShutdownModule;
   pdf_info.permissions = ppapi::PERMISSION_PRIVATE | ppapi::PERMISSION_DEV;
   plugins->push_back(pdf_info);
+
+  content::WebPluginInfo info;
+  info.type = content::WebPluginInfo::PLUGIN_TYPE_BROWSER_PLUGIN;
+  info.name = base::UTF8ToUTF16(kPDFExtensionPluginName);
+  info.path = base::FilePath::FromUTF8Unsafe(kPdfPluginPath);
+  info.background_color = content::WebPluginInfo::kDefaultBackgroundColor;
+  content::WebPluginMimeType mime_type_info("application/pdf", "pdf",
+                                            "Portable Document Format");
+  info.mime_types.push_back(mime_type_info);
+  content::PluginService::GetInstance()->RefreshPlugins();
+  content::PluginService::GetInstance()->RegisterInternalPlugin(info, true);
 #endif  // BUILDFLAG(ENABLE_PDF_VIEWER)
 }
 

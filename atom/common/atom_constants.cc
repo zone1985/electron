@@ -29,6 +29,8 @@ const char kSecureProtocolDescription[] =
 
 #if BUILDFLAG(ENABLE_PDF_VIEWER)
 const char kPdfPluginMimeType[] = "application/x-google-chrome-pdf";
+const char kPDFExtensionPluginName[] = "Chromium PDF Viewer";
+
 const char kPdfPluginPath[] = "chrome://pdf-viewer/";
 const char kPdfPluginSrc[] = "src";
 
