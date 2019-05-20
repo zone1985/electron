@@ -2077,7 +2077,7 @@ bool WebContents::IsRemoteModuleEnabled() const {
     return false;
   }
   if (auto* web_preferences = WebContentsPreferences::From(web_contents())) {
-    return web_preferences->IsRemoteModuleEnabled();
+    return web_preferences->IsEnabled(options::kEnableRemoteModule);
   }
   return true;
 }

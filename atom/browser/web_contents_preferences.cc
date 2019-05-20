@@ -116,37 +116,6 @@ WebContentsPreferences::WebContentsPreferences(
 
   instances_.push_back(this);
 
-  // Set WebPreferences defaults onto the JS object
-  SetDefaultBoolIfUndefined(options::kPlugins, false);
-  SetDefaultBoolIfUndefined(options::kExperimentalFeatures, false);
-  SetDefaultBoolIfUndefined(options::kNodeIntegration, false);
-  SetDefaultBoolIfUndefined(options::kNodeIntegrationInSubFrames, false);
-  SetDefaultBoolIfUndefined(options::kNodeIntegrationInWorker, false);
-  SetDefaultBoolIfUndefined(options::kDisableHtmlFullscreenWindowResize, false);
-  SetDefaultBoolIfUndefined(options::kWebviewTag, false);
-  SetDefaultBoolIfUndefined(options::kSandbox, false);
-  SetDefaultBoolIfUndefined(options::kNativeWindowOpen, false);
-  SetDefaultBoolIfUndefined(options::kEnableRemoteModule, true);
-  SetDefaultBoolIfUndefined(options::kContextIsolation, false);
-  SetDefaultBoolIfUndefined(options::kJavaScript, true);
-  SetDefaultBoolIfUndefined(options::kImages, true);
-  SetDefaultBoolIfUndefined(options::kTextAreasAreResizable, true);
-  SetDefaultBoolIfUndefined(options::kWebGL, true);
-  bool webSecurity = true;
-  SetDefaultBoolIfUndefined(options::kWebSecurity, webSecurity);
-  // If webSecurity was explicity set to false, let's inherit that into
-  // insecureContent
-  if (web_preferences.Get(options::kWebSecurity, &webSecurity) &&
-      !webSecurity) {
-    SetDefaultBoolIfUndefined(options::kAllowRunningInsecureContent, true);
-  } else {
-    SetDefaultBoolIfUndefined(options::kAllowRunningInsecureContent, false);
-  }
-#if defined(OS_MACOSX)
-  SetDefaultBoolIfUndefined(options::kScrollBounce, false);
-#endif
-  SetDefaultBoolIfUndefined(options::kOffscreen, false);
-
   SetDefaults();
 
   // If this is a <webview> tag, and the embedder is offscreen-rendered, then
@@ -175,6 +144,29 @@ WebContentsPreferences::~WebContentsPreferences() {
 }
 
 void WebContentsPreferences::SetDefaults() {
+  SetDefaultBoolIfUndefined(options::kPlugins, false);
+  SetDefaultBoolIfUndefined(options::kExperimentalFeatures, false);
+  SetDefaultBoolIfUndefined(options::kNodeIntegration, false);
+  SetDefaultBoolIfUndefined(options::kNodeIntegrationInSubFrames, false);
+  SetDefaultBoolIfUndefined(options::kNodeIntegrationInWorker, false);
+  SetDefaultBoolIfUndefined(options::kDisableHtmlFullscreenWindowResize, false);
+  SetDefaultBoolIfUndefined(options::kWebviewTag, false);
+  SetDefaultBoolIfUndefined(options::kSandbox, false);
+  SetDefaultBoolIfUndefined(options::kNativeWindowOpen, false);
+  SetDefaultBoolIfUndefined(options::kEnableRemoteModule, true);
+  SetDefaultBoolIfUndefined(options::kContextIsolation, false);
+  SetDefaultBoolIfUndefined(options::kJavaScript, true);
+  SetDefaultBoolIfUndefined(options::kImages, true);
+  SetDefaultBoolIfUndefined(options::kTextAreasAreResizable, true);
+  SetDefaultBoolIfUndefined(options::kWebGL, true);
+  SetDefaultBoolIfUndefined(options::kWebSecurity, true);
+  SetDefaultBoolIfUndefined(options::kAllowRunningInsecureContent,
+                            !IsEnabled(options::kWebSecurity));
+#if defined(OS_MACOSX)
+  SetDefaultBoolIfUndefined(options::kScrollBounce, false);
+#endif
+  SetDefaultBoolIfUndefined(options::kOffscreen, false);
+
   if (IsEnabled(options::kSandbox)) {
     SetBool(options::kNativeWindowOpen, true);
   }
@@ -221,10 +213,6 @@ void WebContentsPreferences::Clear() {
 bool WebContentsPreferences::GetPreference(const base::StringPiece& name,
                                            std::string* value) const {
   return GetAsString(&preference_, name, value);
-}
-
-bool WebContentsPreferences::IsRemoteModuleEnabled() const {
-  return IsEnabled(options::kEnableRemoteModule, true);
 }
 
 bool WebContentsPreferences::GetPreloadPath(
@@ -323,7 +311,7 @@ void WebContentsPreferences::AppendCommandLineSwitches(
   }
 
   // Whether to enable the remote module
-  if (!IsRemoteModuleEnabled())
+  if (!IsEnabled(options::kEnableRemoteModule))
     command_line->AppendSwitch(switches::kDisableRemoteModule);
 
   // Run Electron APIs and preload script in isolated world
@@ -419,30 +407,24 @@ void WebContentsPreferences::AppendCommandLineSwitches(
 
 void WebContentsPreferences::OverrideWebkitPrefs(
     content::WebPreferences* prefs) {
-  prefs->javascript_enabled =
-      IsEnabled(options::kJavaScript, true /* default_value */);
-  prefs->images_enabled = IsEnabled(options::kImages, true /* default_value */);
-  prefs->text_areas_are_resizable =
-      IsEnabled(options::kTextAreasAreResizable, true /* default_value */);
-  prefs->navigate_on_drag_drop =
-      IsEnabled(options::kNavigateOnDragDrop, false /* default_value */);
+  prefs->javascript_enabled = IsEnabled(options::kJavaScript);
+  prefs->images_enabled = IsEnabled(options::kImages);
+  prefs->text_areas_are_resizable = IsEnabled(options::kTextAreasAreResizable);
+  prefs->navigate_on_drag_drop = IsEnabled(options::kNavigateOnDragDrop);
   if (!GetAsAutoplayPolicy(&preference_, "autoplayPolicy",
                            &prefs->autoplay_policy)) {
     prefs->autoplay_policy = content::AutoplayPolicy::kNoUserGestureRequired;
   }
 
   // Check if webgl should be enabled.
-  bool is_webgl_enabled = IsEnabled(options::kWebGL, true /* default_value */);
+  bool is_webgl_enabled = IsEnabled(options::kWebGL);
   prefs->webgl1_enabled = is_webgl_enabled;
   prefs->webgl2_enabled = is_webgl_enabled;
 
   // Check if web security should be enabled.
-  bool is_web_security_enabled =
-      IsEnabled(options::kWebSecurity, true /* default_value */);
-  prefs->web_security_enabled = is_web_security_enabled;
+  prefs->web_security_enabled = IsEnabled(options::kWebSecurity);
   prefs->allow_running_insecure_content =
-      IsEnabled(options::kAllowRunningInsecureContent,
-                !is_web_security_enabled /* default_value */);
+      IsEnabled(options::kAllowRunningInsecureContent);
 
   auto* fonts_dict = preference_.FindKeyOfType("defaultFontFamily",
                                                base::Value::Type::DICTIONARY);
