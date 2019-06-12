@@ -16,6 +16,7 @@
 #include "atom/browser/api/atom_api_protocol.h"
 #include "atom/browser/api/atom_api_protocol_ns.h"
 #include "atom/browser/api/atom_api_web_contents.h"
+#include "atom/browser/atom_autofill_driver_factory.h"
 #include "atom/browser/atom_browser_context.h"
 #include "atom/browser/atom_browser_main_parts.h"
 #include "atom/browser/atom_navigation_throttle.h"
@@ -68,6 +69,7 @@
 #include "content/public/common/service_names.mojom.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/web_preferences.h"
+#include "electron/atom/common/api/api.mojom.h"
 #include "electron/buildflags/buildflags.h"
 #include "electron/grit/electron_resources.h"
 #include "net/base/escape.h"
@@ -959,6 +961,21 @@ bool AtomBrowserClient::WillCreateURLLoaderFactory(
                                std::move(proxied_request),
                                std::move(target_factory_info));
   return true;
+}
+
+bool AtomBrowserClient::BindAssociatedInterfaceRequestFromFrame(
+    content::RenderFrameHost* render_frame_host,
+    const std::string& interface_name,
+    mojo::ScopedInterfaceEndpointHandle* handle) {
+  if (interface_name == atom::mojom::ElectronAutofillDriver::Name_) {
+    atom::AutofillDriverFactory::BindAutofillDriver(
+        atom::mojom::ElectronAutofillDriverAssociatedRequest(
+            std::move(*handle)),
+        render_frame_host);
+    return true;
+  }
+
+  return false;
 }
 
 std::string AtomBrowserClient::GetApplicationLocale() {

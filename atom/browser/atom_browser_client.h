@@ -178,6 +178,10 @@ class AtomBrowserClient : public content::ContentBrowserClient,
       network::mojom::URLLoaderFactoryRequest* factory_request,
       network::mojom::TrustedURLLoaderHeaderClientPtrInfo* header_client,
       bool* bypass_redirect_checks) override;
+  bool BindAssociatedInterfaceRequestFromFrame(
+      content::RenderFrameHost* render_frame_host,
+      const std::string& interface_name,
+      mojo::ScopedInterfaceEndpointHandle* handle) override;
 
   // content::RenderProcessHostObserver:
   void RenderProcessHostDestroyed(content::RenderProcessHost* host) override;
