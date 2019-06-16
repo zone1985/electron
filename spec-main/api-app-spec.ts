@@ -963,10 +963,13 @@ describe('app module', () => {
         expect(entry.cpu).to.have.ownProperty('idleWakeupsPerSecond').that.is.a('number')
 
         if (process.platform !== 'linux') {
+          expect(entry.memory).to.have.property('workingSetSize').that.is.greaterThan(0)
+          expect(entry.memory).to.have.property('peakWorkingSetSize').that.is.greaterThan(0)
           expect(entry.sandboxed).to.be.a('boolean')
         }
 
         if (process.platform === 'win32') {
+          expect(entry.memory).to.have.property('privateBytes').that.is.greaterThan(0)
           expect(entry.integrityLevel).to.be.a('string')
         }
       }
