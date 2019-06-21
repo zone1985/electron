@@ -7,7 +7,7 @@ steps:
 - bash: |
     cd src/electron
     npx yarn@1.15.2 install --frozen-lockfile --verbose
-  displayName: 'NPM install'
+  displayName: 'Yarn install'
 
 - bash: |
     export ZIP_DEST=$PWD/src/out/Default
