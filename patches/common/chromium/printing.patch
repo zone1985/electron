@@ -351,6 +351,14 @@ diff --git a/components/printing/renderer/print_render_frame_helper.cc b/compone
 index d51abda693de7fc701928e29fe35154169f41651..051958321c9b95d5951f76ee822dd67a17d18324 100644
 --- a/components/printing/renderer/print_render_frame_helper.cc
 +++ b/components/printing/renderer/print_render_frame_helper.cc
+@@ -37,6 +37,7 @@
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "printing/buildflags/buildflags.h"
+ #include "printing/metafile_skia.h"
++#include "printing/print_settings.h"
+ #include "printing/units.h"
+ #include "third_party/blink/public/common/frame/frame_owner_element_type.h"
+ #include "third_party/blink/public/common/frame/sandbox_flags.h"
 @@ -1109,7 +1109,9 @@ void PrintRenderFrameHelper::ScriptedPrint(bool user_initiated) {
      web_frame->DispatchBeforePrintEvent();
      if (!weak_this)
@@ -435,13 +443,15 @@ index d51abda693de7fc701928e29fe35154169f41651..051958321c9b95d5951f76ee822dd67a
      DidFinishPrinting(FAIL_PRINT_INIT);
      return;  // Failed to init print page settings.
    }
-@@ -1655,8 +1669,9 @@ void PrintRenderFrameHelper::Print(blink::WebLocalFrame* frame,
+@@ -1655,8 +1669,11 @@ void PrintRenderFrameHelper::Print(blink::WebLocalFrame* frame,
  
      PrintMsg_PrintPages_Params print_settings;
      auto self = weak_ptr_factory_.GetWeakPtr();
 -    GetPrintSettingsFromUser(frame_ref.GetFrame(), node, expected_page_count,
 -                             print_request_type, &print_settings);
-+    if (!silent)
++    if (silent)
++      print_settings = *print_pages_params_.get();
++    else
 +      GetPrintSettingsFromUser(frame_ref.GetFrame(), node, expected_page_count,
 +                               print_request_type, &print_settings);
      // Check if |this| is still valid.
