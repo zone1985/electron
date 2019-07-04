@@ -628,7 +628,7 @@ describe('net module', () => {
       })
     })
 
-    describe('webRequest', () => {
+    xdescribe('webRequest', () => {
       afterEach(() => {
         session.defaultSession.webRequest.onBeforeRequest(null)
       })
