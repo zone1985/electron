@@ -60,6 +60,7 @@
 #include "shell/browser/lib/bluetooth_chooser.h"
 #include "shell/browser/native_window.h"
 #include "shell/browser/net/atom_network_delegate.h"
+#include "shell/browser/session_preferences.h"
 #include "shell/browser/ui/drag_util.h"
 #include "shell/browser/ui/inspectable_web_contents.h"
 #include "shell/browser/ui/inspectable_web_contents_view.h"
@@ -127,6 +128,59 @@ struct Converter<printing::PrinterBasicInfo> {
     return dict.GetHandle();
   }
 };
+
+template <>
+struct Converter<printing::MarginType> {
+  static bool FromV8(v8::Isolate* isolate,
+                     v8::Local<v8::Value> val,
+                     printing::MarginType* out) {
+    std::string type;
+    if (ConvertFromV8(isolate, val, &type)) {
+      if (type == "default") {
+        *out = printing::DEFAULT_MARGINS;
+        return true;
+      }
+      if (type == "none") {
+        *out = printing::NO_MARGINS;
+        return true;
+      }
+      if (type == "printableArea") {
+        *out = printing::PRINTABLE_AREA_MARGINS;
+        return true;
+      }
+      if (type == "custom") {
+        *out = printing::CUSTOM_MARGINS;
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+template <>
+struct Converter<printing::DuplexMode> {
+  static bool FromV8(v8::Isolate* isolate,
+                     v8::Local<v8::Value> val,
+                     printing::DuplexMode* out) {
+    std::string mode;
+    if (ConvertFromV8(isolate, val, &mode)) {
+      if (mode == "simplex") {
+        *out = printing::SIMPLEX;
+        return true;
+      }
+      if (mode == "longEdge") {
+        *out = printing::LONG_EDGE;
+        return true;
+      }
+      if (mode == "shortEdge") {
+        *out = printing::SHORT_EDGE;
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
 #endif
 
 template <>
@@ -704,7 +758,7 @@ void WebContents::FindReply(content::WebContents* web_contents,
 bool WebContents::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
     const GURL& security_origin,
-    blink::MediaStreamType type) {
+    blink::mojom::MediaStreamType type) {
   auto* web_contents =
       content::WebContents::FromRenderFrameHost(render_frame_host);
   auto* permission_helper =
@@ -1301,7 +1355,7 @@ void WebContents::DownloadURL(const GURL& url) {
       content::BrowserContext::GetDownloadManager(browser_context);
   std::unique_ptr<download::DownloadUrlParameters> download_params(
       content::DownloadRequestUtils::CreateDownloadForWebContentsMainFrame(
-          web_contents(), url, NO_TRAFFIC_ANNOTATION_YET));
+          web_contents(), url, MISSING_TRAFFIC_ANNOTATION));
   download_manager->DownloadUrl(std::move(download_params));
 }
 
@@ -1534,8 +1588,6 @@ bool WebContents::IsCurrentlyAudible() {
 
 #if BUILDFLAG(ENABLE_PRINTING)
 void WebContents::Print(mate::Arguments* args) {
-  bool silent = false, print_background = false;
-  base::string16 device_name;
   mate::Dictionary options = mate::Dictionary::CreateEmpty(args->isolate());
   base::DictionaryValue settings;
   if (args->Length() >= 1 && !args->GetNext(&options)) {
@@ -1547,11 +1599,123 @@ void WebContents::Print(mate::Arguments* args) {
     args->ThrowError("Invalid optional callback provided");
     return;
   }
+
+  // Set optional silent printing
+  bool silent = false;
   options.Get("silent", &silent);
-  options.Get("printBackground", &print_background);
-  if (options.Get("deviceName", &device_name) && !device_name.empty()) {
-    settings.SetString(printing::kSettingDeviceName, device_name);
+
+  // Set custom margin settings
+  mate::Dictionary margins;
+  if (options.Get("margins", &margins)) {
+    printing::MarginType margin_type = printing::DEFAULT_MARGINS;
+    margins.Get("marginType", &margin_type);
+    settings.SetInteger(printing::kSettingMarginsType, margin_type);
+
+    if (margin_type == printing::CUSTOM_MARGINS) {
+      int top = 0;
+      margins.Get("top", &top);
+      settings.SetInteger(printing::kSettingMarginTop, top);
+      int bottom = 0;
+      margins.Get("bottom", &bottom);
+      settings.SetInteger(printing::kSettingMarginBottom, bottom);
+      int left = 0;
+      margins.Get("left", &left);
+      settings.SetInteger(printing::kSettingMarginLeft, left);
+      int right = 0;
+      margins.Get("right", &right);
+      settings.SetInteger(printing::kSettingMarginRight, right);
+    }
+  } else {
+    settings.SetInteger(printing::kSettingMarginsType,
+                        printing::DEFAULT_MARGINS);
   }
+
+  settings.SetBoolean(printing::kSettingHeaderFooterEnabled, false);
+
+  // Set whether to print color or greyscale
+  bool print_color = true;
+  options.Get("color", &print_color);
+  int color_setting = print_color ? printing::COLOR : printing::GRAY;
+  settings.SetInteger(printing::kSettingColor, color_setting);
+
+  bool landscape = false;
+  options.Get("landscape", &landscape);
+  settings.SetBoolean(printing::kSettingLandscape, landscape);
+
+  base::string16 device_name;
+  options.Get("deviceName", &device_name);
+  settings.SetString(printing::kSettingDeviceName, device_name);
+
+  int scale_factor = 100;
+  options.Get("scaleFactor", &scale_factor);
+  settings.SetInteger(printing::kSettingScaleFactor, scale_factor);
+
+  int pages_per_sheet = 1;
+  options.Get("pagesPerSheet", &pages_per_sheet);
+  settings.SetInteger(printing::kSettingPagesPerSheet, pages_per_sheet);
+
+  bool collate = true;
+  options.Get("collate", &collate);
+  settings.SetBoolean(printing::kSettingCollate, collate);
+
+  int copies = 1;
+  options.Get("copies", &copies);
+  settings.SetInteger(printing::kSettingCopies, copies);
+
+  bool print_background = false;
+  options.Get("printBackground", &print_background);
+  settings.SetBoolean(printing::kSettingShouldPrintBackgrounds,
+                      print_background);
+
+  // For now we don't want to allow the user to enable these settings
+  // but we need to set them or a CHECK is hit.
+  settings.SetBoolean(printing::kSettingPrintToPDF, false);
+  settings.SetBoolean(printing::kSettingCloudPrintDialog, false);
+  settings.SetBoolean(printing::kSettingPrintWithPrivet, false);
+  settings.SetBoolean(printing::kSettingShouldPrintSelectionOnly, false);
+  settings.SetBoolean(printing::kSettingPrintWithExtension, false);
+  settings.SetBoolean(printing::kSettingRasterizePdf, false);
+
+  // Set custom page ranges to print
+  std::vector<mate::Dictionary> page_ranges;
+  if (options.Get("pageRanges", &page_ranges)) {
+    std::unique_ptr<base::ListValue> page_range_list(new base::ListValue());
+    for (size_t i = 0; i < page_ranges.size(); ++i) {
+      int from, to;
+      if (page_ranges[i].Get("from", &from) && page_ranges[i].Get("to", &to)) {
+        std::unique_ptr<base::DictionaryValue> range(
+            new base::DictionaryValue());
+        range->SetInteger(printing::kSettingPageRangeFrom, from);
+        range->SetInteger(printing::kSettingPageRangeTo, to);
+        page_range_list->Append(std::move(range));
+      } else {
+        continue;
+      }
+    }
+    if (page_range_list->GetSize() > 0)
+      settings.SetList(printing::kSettingPageRange, std::move(page_range_list));
+  }
+
+  // Set custom duplex mode
+  printing::DuplexMode duplex_mode;
+  options.Get("duplexMode", &duplex_mode);
+  settings.SetInteger(printing::kSettingDuplexMode, duplex_mode);
+
+  // Set custom dots per inch (dpi)
+  mate::Dictionary dpi_settings;
+  int dpi = 72;
+  if (options.Get("dpi", &dpi_settings)) {
+    int horizontal = 72;
+    dpi_settings.Get("horizontal", &horizontal);
+    settings.SetInteger(printing::kSettingDpiHorizontal, horizontal);
+    int vertical = 72;
+    dpi_settings.Get("vertical", &vertical);
+    settings.SetInteger(printing::kSettingDpiVertical, vertical);
+  } else {
+    settings.SetInteger(printing::kSettingDpiHorizontal, dpi);
+    settings.SetInteger(printing::kSettingDpiVertical, dpi);
+  }
+
   auto* print_view_manager =
       printing::PrintViewManagerBasic::FromWebContents(web_contents());
   auto* focused_frame = web_contents()->GetFocusedFrame();
@@ -1917,7 +2081,7 @@ v8::Local<v8::Promise> WebContents::CapturePage(mate::Arguments* args) {
 void WebContents::OnCursorChange(const content::WebCursor& cursor) {
   const content::CursorInfo& info = cursor.info();
 
-  if (info.type == blink::WebCursorInfo::kTypeCustom) {
+  if (info.type == ui::CursorType::kCustom) {
     Emit("cursor-changed", CursorTypeToString(info),
          gfx::Image::CreateFrom1xBitmap(info.custom_image),
          info.image_scale_factor,
@@ -1994,7 +2158,7 @@ void WebContents::Invalidate() {
   }
 }
 
-gfx::Size WebContents::GetSizeForNewRenderView(content::WebContents* wc) const {
+gfx::Size WebContents::GetSizeForNewRenderView(content::WebContents* wc) {
   if (IsOffScreen() && wc == web_contents()) {
     auto* relay = NativeWindowRelay::FromWebContents(web_contents());
     if (relay) {
@@ -2043,14 +2207,17 @@ void WebContents::HideAutofillPopup() {
   CommonWebContentsDelegate::HideAutofillPopup();
 }
 
-v8::Local<v8::Value> WebContents::GetPreloadPath(v8::Isolate* isolate) const {
+std::vector<base::FilePath::StringType> WebContents::GetPreloadPaths() const {
+  auto result = SessionPreferences::GetValidPreloads(GetBrowserContext());
+
   if (auto* web_preferences = WebContentsPreferences::From(web_contents())) {
     base::FilePath::StringType preload;
     if (web_preferences->GetPreloadPath(&preload)) {
-      return mate::ConvertToV8(isolate, preload);
+      result.emplace_back(preload);
     }
   }
-  return v8::Null(isolate);
+
+  return result;
 }
 
 v8::Local<v8::Value> WebContents::GetWebPreferences(
@@ -2221,8 +2388,10 @@ void WebContents::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("_goForward", &WebContents::GoForward)
       .SetMethod("_goToOffset", &WebContents::GoToOffset)
       .SetMethod("isCrashed", &WebContents::IsCrashed)
-      .SetMethod("setUserAgent", &WebContents::SetUserAgent)
-      .SetMethod("getUserAgent", &WebContents::GetUserAgent)
+      .SetMethod("_setUserAgent", &WebContents::SetUserAgent)
+      .SetMethod("_getUserAgent", &WebContents::GetUserAgent)
+      .SetProperty("userAgent", &WebContents::GetUserAgent,
+                   &WebContents::SetUserAgent)
       .SetMethod("savePage", &WebContents::SavePage)
       .SetMethod("openDevTools", &WebContents::OpenDevTools)
       .SetMethod("closeDevTools", &WebContents::CloseDevTools)
@@ -2233,8 +2402,10 @@ void WebContents::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("toggleDevTools", &WebContents::ToggleDevTools)
       .SetMethod("inspectElement", &WebContents::InspectElement)
       .SetMethod("setIgnoreMenuShortcuts", &WebContents::SetIgnoreMenuShortcuts)
-      .SetMethod("setAudioMuted", &WebContents::SetAudioMuted)
-      .SetMethod("isAudioMuted", &WebContents::IsAudioMuted)
+      .SetMethod("_setAudioMuted", &WebContents::SetAudioMuted)
+      .SetMethod("_isAudioMuted", &WebContents::IsAudioMuted)
+      .SetProperty("audioMuted", &WebContents::IsAudioMuted,
+                   &WebContents::SetAudioMuted)
       .SetMethod("isCurrentlyAudible", &WebContents::IsCurrentlyAudible)
       .SetMethod("undo", &WebContents::Undo)
       .SetMethod("redo", &WebContents::Redo)
@@ -2265,16 +2436,22 @@ void WebContents::BuildPrototype(v8::Isolate* isolate,
       .SetMethod("startPainting", &WebContents::StartPainting)
       .SetMethod("stopPainting", &WebContents::StopPainting)
       .SetMethod("isPainting", &WebContents::IsPainting)
-      .SetMethod("setFrameRate", &WebContents::SetFrameRate)
-      .SetMethod("getFrameRate", &WebContents::GetFrameRate)
+      .SetMethod("_setFrameRate", &WebContents::SetFrameRate)
+      .SetMethod("_getFrameRate", &WebContents::GetFrameRate)
+      .SetProperty("frameRate", &WebContents::GetFrameRate,
+                   &WebContents::SetFrameRate)
 #endif
       .SetMethod("invalidate", &WebContents::Invalidate)
-      .SetMethod("setZoomLevel", &WebContents::SetZoomLevel)
-      .SetMethod("getZoomLevel", &WebContents::GetZoomLevel)
-      .SetMethod("setZoomFactor", &WebContents::SetZoomFactor)
-      .SetMethod("getZoomFactor", &WebContents::GetZoomFactor)
+      .SetMethod("_setZoomLevel", &WebContents::SetZoomLevel)
+      .SetMethod("_getZoomLevel", &WebContents::GetZoomLevel)
+      .SetProperty("zoomLevel", &WebContents::GetZoomLevel,
+                   &WebContents::SetZoomLevel)
+      .SetMethod("_setZoomFactor", &WebContents::SetZoomFactor)
+      .SetMethod("_getZoomFactor", &WebContents::GetZoomFactor)
+      .SetProperty("zoomFactor", &WebContents::GetZoomFactor,
+                   &WebContents::SetZoomFactor)
       .SetMethod("getType", &WebContents::GetType)
-      .SetMethod("_getPreloadPath", &WebContents::GetPreloadPath)
+      .SetMethod("_getPreloadPaths", &WebContents::GetPreloadPaths)
       .SetMethod("getWebPreferences", &WebContents::GetWebPreferences)
       .SetMethod("getLastWebPreferences", &WebContents::GetLastWebPreferences)
       .SetMethod("_isRemoteModuleEnabled", &WebContents::IsRemoteModuleEnabled)
